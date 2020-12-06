@@ -5,7 +5,7 @@
  #}
 {% set _zone_data = {} %}
 {% set _ = _zone_data.update({'ttl': bind_zone_ttl}) %}
-{% set _ = _zone_data.update({'domain': item.0.name}) %}
+{% set _ = _zone_data.update({'domain': item.0.name.split("/")|last}) %}
 {% set _ = _zone_data.update({'mname': item.0.name_servers|default([])}) %}
 {% set _ = _zone_data.update({'aname': item.0.other_name_servers|default([])}) %}
 {% if item.0.hostmaster_email is defined %}

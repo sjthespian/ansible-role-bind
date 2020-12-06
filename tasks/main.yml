@@ -1,5 +1,9 @@
 ---
 
+- name: Ensure we have network facts
+  setup:
+    gather_subset: network
+
 # Initialise distribution-specific variables
 - name: Source specific variables
   include_vars: "{{ item }}"
@@ -67,6 +71,20 @@
   become: yes
   tags: bind
 
+- name: Ensure Directories for Zone Views exists
+  file:
+    path: "{{ bind_zone_dir }}/{{ item.name }}"
+    state: directory
+    owner: "{{ bind_owner }}"
+    group: "{{ bind_group }}"
+    mode: 0770
+  become: yes
+  with_items:
+    - "{{ bind_views }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: bind
+
 - name: Create serial, based on UTC UNIX time
   command: date -u +%s
   register: timestamp
@@ -99,7 +117,7 @@
     group: "{{ bind_group }}"
     mode: 0640
     setype: named_conf_t
-    validate: 'named-checkconf %s'
+#    validate: 'named-checkconf %s'
   become: yes
   notify: reload bind
   tags: bind

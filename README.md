@@ -1,8 +1,11 @@
 # Ansible role BIND
 
+NOTE: This is a fork of [bertvv/ansible-role-bind](https://github.com/bertvv/ansible-role-bind).
+This fork adds support for bind views. It also includes support for arbitrary record types. This support may not be complete, but it works for my needs. Please open an issue if you with to use this fork and need something added.
+
 [![Actions Status](https://github.com/bertvv/ansible-role-bind/workflows/CI/badge.svg)](https://github.com/bertvv/ansible-role-bind/actions)
 
-An Ansible role for setting up ISC BIND as an **authoritative-only** DNS server for multiple domains. Specifically, the responsibilities of this role are to:
+An Ansible role for setting up ISC BIND as an **authoritative-only** DNS server for multiple domains. Specifically, the responsibilities of this role are to: 
 
 - install BIND
 - set up the main configuration file (primary/secondary/forwarder server)
@@ -10,7 +13,7 @@ An Ansible role for setting up ISC BIND as an **authoritative-only** DNS server 
 
 This role supports multiple forward and reverse zones, including for IPv6. Although enabling recursion is supported (albeit *strongly* discouraged), consider using another role if you want to set up a caching or forwarding name server.
 
-If you like/use this role, please consider giving it a star and rating it on the role's [Ansible Galaxy page](https://galaxy.ansible.com/bertvv/bind). Thanks!
+If you like/use the primary fork of this role, please consider giving it a star and rating it on the role's [Ansible Galaxy page](https://galaxy.ansible.com/bertvv/bind). Thanks!
 
 See the [change log](CHANGELOG.md) for notable changes between versions.
 
@@ -60,6 +63,10 @@ The packages `python-netaddr` (required for the [`ipaddr`](https://docs.ansible.
 | `bind_statistics_port`      | 8053                 | Network port that the statistics service should listen on                                                                            |
 | `bind_transfer_key_name`    | -                    | The name of a TSIG key that should be used to sign XFR requests from the client                                                      |
 | `bind_zone_dir`             | -                    | When defined, sets a custom absolute path to the server directory (for zone files, etc.) instead of the default.                     |
+| `bind_views`                | n/a                  | A list of mappings with view definitions. See below this table for examples                                                          |
+| `- match_clients`           | n/a                  | A list of acl names to match for this view.                                                                                          |
+| `- recursion`               | n/a                  | True to enable recursion for this view.                                                                                              |
+| `- allow-recursion`         | n/a                  | A list of acl names to match to permit recursion for this view.                                                                      |
 | `bind_zones`                | n/a                  | A list of mappings with zone definitions. See below this table for examples                                                          |
 | `- allow_update`            | `['none']`           | A list of hosts that are allowed to dynamically update this DNS zone.                                                                |
 | `- also_notify`             | -                    | A list of servers that will receive a notification when the primary zone file is reloaded.                                           |
@@ -72,7 +79,7 @@ The packages `python-netaddr` (required for the [`ipaddr`](https://docs.ansible.
 | `- ipv6_networks`           | `[]`                 | A list of the IPv6 networks that are part of the domain, in CIDR notation (e.g. 2001:db8::/48)                                       |
 | `- mail_servers`            | `[]`                 | A list of mappings (with keys `name:` and `preference:`) specifying the mail servers for this domain.                                |
 | `- name_servers`            | `[ansible_hostname]` | A list of the DNS servers for this domain.                                                                                           |
-| `- name`                    | `example.com`        | The domain name                                                                                                                      |
+| `- name`                    | `example.com`        | The domain name prefixed with the name of the view and a slash.                                                                        |
 | `- naptr`                   | `[]`                 | A list of mappings with keys `name:`, `order:`, `pref:`, `flags:`, `service:`, `regex:` and `replacement:` specifying NAPTR records. |
 | `- networks`                | `['10.0.2']`         | A list of the networks that are part of the domain                                                                                   |
 | `- other_name_servers`      | `[]`                 | A list of the DNS servers outside of this domain.                                                                                    |
@@ -97,6 +104,7 @@ In order to set up an authoritative name server that is available to clients, yo
 |:-------------------|:-------:|:---------:|:-------:|
 | `bind_allow_query` |    V    |     V     |    V    |
 | `bind_listen_ipv4` |    V    |     V     |    V    |
+| `bind_views`       |    V    |     V     |    V    |
 | `bind_zones`       |    V    |     V     |    V    |
 | `- hosts`          |    V    |    --     |   --    |
 | `- name_servers`   |    V    |    --     |   --    |
@@ -109,9 +117,37 @@ In order to set up an authoritative name server that is available to clients, yo
 ### Domain definitions
 
 ```Yaml
+bind_views:
+  - name: external
+    match_clients:
+      - "!acl-internal"
+      - "any"
+  - name: internal
+    match_clients:
+      - "acl-internal"
+    recursion: true
+    allow_recursion:
+      - "acl-internal"
 bind_zones:
   # Example of a primary zone (hosts: and name_servers: ares defined)
-  - name: mydomain.com           # Domain name
+  # Simple example for an external view
+  - name: external/mydomain.com  # Domain name
+    primaries: 
+      - 192.0.2.1
+    namesevers:
+      - ns1.mydomain.com
+      - ns2.mydomain.com
+    hosts:
+      - name: ns1
+        ip: 1.2.3.4
+      - name: ns2
+        ip: 1.2.3.5
+      - name: '@'
+        ip: 1.2.3.4
+    networks:
+      - 1.2.3
+  # Full example for an internal view
+  - name: internal/mydomain.com  # Domain name
     create_reverse_zones: false  # Skip creation of reverse zones
     primaries:
       - 192.0.2.1                # Primary server(s) for this zone
@@ -168,13 +204,13 @@ bind_zones:
         regex: "!^.*$!sip:customer-service@example.com!"
         replacement: "_sip._tcp.example.com."
   # Minimal example of a secondary zone
-  - name: acme.com
+  - name: internal/acme.com
     primaries:
       - 172.17.0.2
     networks:
       - "172.17"
   # Minimal example of a forward zone
-  - name: acme.com
+  - name: internal/acme.com
     forwarders:
       - 172.17.0.2
     networks:

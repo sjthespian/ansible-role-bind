@@ -5,7 +5,7 @@
  #}
 {% set _zone_data = {} %}
 {% set _ = _zone_data.update({'ttl': bind_zone_ttl}) %}
-{% set _ = _zone_data.update({'domain': item.name}) %}
+{% set _ = _zone_data.update({'domain': item.name.split("/")|last}) %}
 {% set _ = _zone_data.update({'mname': item.name_servers|default([])}) %}
 {% set _ = _zone_data.update({'aname': item.other_name_servers|default([])}) %}
 {% set _ = _zone_data.update({'mail': item.mail_servers|default([])}) %}
@@ -117,6 +117,17 @@ $TTL {{ _zone_data['ttl'] }}
 {% if host.sshfp is defined %}
 {% for sshfp in host.sshfp %}
 {{ host.name.ljust(20) }} IN SSHFP {{ sshfp}}
+{% endfor %}
+{% endif %}
+{% if host.records is defined %}
+{% for rec in host.records %}
+{% if rec.value is string %}
+{{ host.name.ljust(20) }} IN  {{ rec.type }} {{ rec.value }}
+{% else %}
+{% for thisrec in rec.value %}
+{{ host.name.ljust(20) }} IN  {{ rec.type }} {{ thisrec }}
+{% endfor %}
+{% endif %}
 {% endfor %}
 {% endif %}
 {% endfor %}

@@ -96,6 +96,14 @@ logging {
 {% endif %}
 };
 
+{% for view in bind_views %}
+view "{{ view.name }}" {
+  match-clients { {{ view.match_clients | join("; ") }}; };
+{% if view.allow_recursion is defined %}
+  allow-recursion { {{ view.allow_recursion | join("; ") }}; };
+{% endif %}
+  recursion {% if view.recursion is defined and view.recursion %}yes{% else %}no{% endif %};
+  
 {% for file in bind_default_zone_files %}
 include "{{ file }}";
 {% endfor %}
@@ -104,6 +112,7 @@ include "{{ file }}";
 {% endfor %}
 {% if bind_zones is defined %}
 {% for bind_zone in bind_zones %}
+{% if bind_zone.name | regex_search("^" + view.name + "/") %}
 
 {% if bind_zone.create_forward_zones is not defined or bind_zone.create_forward_zones %}
 {# Start: set zone type  #}
@@ -122,7 +131,7 @@ include "{{ file }}";
 {% set _type = 'forward' %}
 {% endif %}
 {# End: set zone type #}
-zone "{{ bind_zone.name }}" IN {
+zone "{{ bind_zone.name | replace(view.name + "/", "") }}" IN {
 {% if _type == 'primary' %}
   type master;
   file "{{ bind_zone_dir }}/{{ bind_zone.name }}";
@@ -206,5 +215,8 @@ zone "{{ (network | ipaddr('revdns'))[-(9+(network|regex_replace('^.*/','')|int)
 {% endfor %}
 {% endif %}
 {% endif %}
+{% endif %}
 {% endfor %}
 {% endif %}
+};
+{% endfor %}
